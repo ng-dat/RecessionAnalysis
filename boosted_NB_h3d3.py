@@ -96,11 +96,13 @@ y_test=y[train_size:]
 
 print('Training...')
 # Gaussian NB
+print('GaussianNB')
 model1 = GaussianNB()
 model1.fit(X_train, y_train)
 evaluate(model1, Data, X_train, X_test, y_test, verbose=0)
 
 # Adaboost and NB
+print('\nBoosted GaussianNB')
 nb = GaussianNB()
 model2 = AdaBoostClassifier(base_estimator=nb, n_estimators=500, algorithm="SAMME")
 model2.fit(X_train, y_train)

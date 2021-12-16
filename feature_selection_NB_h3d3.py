@@ -21,35 +21,6 @@ def evaluate(model, Data, X_train, X_test, y_test, verbose=0):
 	print('F1:', f1_score)
 	precision_score = metrics.precision_score(y_test, y_pred_out)
 	print('Precision:', precision_score)
-	if verbose==1:
-		visualize(Data, y_pred, y_pred_in, y_pred_out)
-
-
-def visualize(Data, y_pred, y_pred_in, y_pred_out):
-	date_list = Data[Data.columns[0]]
-	x_tick_positions = [60 * i+5 for i in range(10)]
-	date_ticks = [date_list[x] for x in x_tick_positions]
-	plt.xticks(x_tick_positions, date_ticks, rotation=70)
-
-	x_out = [len(y_pred_in) + i for i in range(len(y_pred_out))]
-
-	ddd = DataFrame()
-	ddd["Dates"] = date_list
-	ddd["nber"] = y
-	ddd["Recession Forecast"] = np.append(y_pred_in, y_pred_out)
-	ddd.head(10)
-
-	ddd["new_date"] = pd.to_datetime(ddd["Dates"], format="%Ym%m")
-	ddd = ddd.sort_values(by="new_date")
-
-	plt.plot(x_out, ddd["Recession Forecast"][len(y_pred_in):] , color = 'red', label="Out of Sample")
-	plt.plot(ddd["Recession Forecast"][:len(y_pred_in)], color = 'green', label="In sample")
-
-	plt.bar([i for i in range(len(y_pred))], ddd["nber"], width=1, color = 'gray')
-	plt.title('Forecast for 3 months ahead horizon (h=3, d=3)', pad=30)
-
-	plt.legend(loc="upper left")
-	plt.show()
 
 
 def fix_data_with_nan(Data):
@@ -98,10 +69,10 @@ print('Training...')
 # Adaboost and FeatureSelectionNB
 from sklearn.base import BaseEstimator
 class FeatureSelectionNB(BaseEstimator):
-	def __init__(self):
+	def __init__(self, score_type='acc'):
 		self.best_model = None
 		self.selected_feature = -1
-		self.score_type = 'acc' # 'f1', 'acc'
+		self.score_type = score_type # 'f1', 'acc'
 
 	def fit(self, x, y, sample_weight=np.array([False])):
 		best_score = float("-inf")
@@ -128,15 +99,27 @@ class FeatureSelectionNB(BaseEstimator):
 		selected_data = np.expand_dims(x[:, self.selected_feature], axis=1)
 		return self.best_model.predict(selected_data)
 
-
+print('FeatureSelectionNB')
 fnb = FeatureSelectionNB()
 fnb.fit(X_train, y_train)
 evaluate(fnb, Data, X_train, X_test, y_test, verbose=0)
 
+print('\nBoosted FeatureSelectionNB')
 fnb = FeatureSelectionNB()
 boosted_fnb = AdaBoostClassifier(base_estimator=fnb, n_estimators=10, algorithm="SAMME")
 boosted_fnb.fit(X_train, y_train)
 evaluate(boosted_fnb, Data, X_train, X_test, y_test, verbose=0)
+
+print('\nGaussianNB')
+model1 = GaussianNB()
+model1.fit(X_train, y_train)
+evaluate(model1, Data, X_train, X_test, y_test, verbose=0)
+
+print('\nBoosted GaussianNB')
+nb = GaussianNB()
+model2 = AdaBoostClassifier(base_estimator=nb, n_estimators=500, algorithm="SAMME")
+model2.fit(X_train, y_train)
+evaluate(model2, Data, X_train, X_test, y_test, verbose=0)
 
 
 
