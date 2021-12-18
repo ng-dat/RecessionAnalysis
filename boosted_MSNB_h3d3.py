@@ -93,7 +93,11 @@ def get_markov_switching_y_models(Data):
     return prior, transition
 
 class MarkovSwitchingNB(GaussianNB):
-    def set_markove_switching_model(self, priors, transitions, nber_4_index=398, nber_5_index=399, nber_6_index=400):
+    def __init__(self, priors, transitions, nber_4_index=398, nber_5_index=399, nber_6_index=400, var_smoothing=1e-9):
+        self.var_smoothing = var_smoothing
+        self.set_markov_switching_model(priors, transitions, nber_4_index, nber_5_index, nber_6_index)
+
+    def set_markov_switching_model(self, priors, transitions, nber_4_index=398, nber_5_index=399, nber_6_index=400):
         self.priors = priors
         self.transitions = transitions
         self.nber_4_index = nber_4_index
@@ -156,38 +160,61 @@ def get_markov_switching_info(Data):
     prior_model, transition_model = get_markov_switching_y_models(Data)
     return prior_model, transition_model, nber_4_index, nber_5_index, nber_6_index
 
+
 print('Loading data...')
 Data = pd.read_csv('data_h3d3.csv', sep='\t')
-priors, transitions, nber_4_index, nber_5_index, nber_6_index = get_markov_switching_info(Data)
+priors, transitions, nber_4_index, nber_5_index, nber_6_index= get_markov_switching_info(Data)
 Data = fix_data_with_nan(Data)
 
 print('Training...')
 avg_mae_GNB = 0
 avg_mae_MSNB = 0
+avg_mae_BoostedMSNB = 0
+avg_mae_BoostedNB = 0
 avg_acc_GNB = 0
 avg_acc_MSNB = 0
-n_loop = 100
+avg_acc_BoostedMSNB = 0
+avg_acc_BoostedNB = 0
+n_loop = 1000
 for i in range(n_loop):
     # Split
     X_train, y_train, X_test, y_test = data_split(Data)
 
     # Gaussian NB
     # print('GaussianNB:')
-    model1 = GaussianNB()
-    model1.fit(X_train, y_train)
-    mae, acc = evaluate(model1, Data, X_train, X_test, y_test, verbose=0)
+    model = GaussianNB()
+    model.fit(X_train, y_train)
+    mae, acc = evaluate(model, Data, X_train, X_test, y_test, verbose=0)
     avg_mae_GNB += mae
     avg_acc_GNB += acc
 
+    # Boosted Gaussian NB
+    # print('\nBoosted Gaussian NB')
+    nb = GaussianNB()
+    model = AdaBoostClassifier(base_estimator=nb, n_estimators=20, algorithm="SAMME")
+    model.fit(X_train, y_train)
+    mae, acc = evaluate(model, Data, X_train, X_test, y_test, verbose=0)
+    avg_mae_BoostedNB += mae
+    avg_acc_BoostedNB += acc
+
     # Markov Switching NB
     # print('\nMarkovSwitchingNB:')
-    model1 = MarkovSwitchingNB()
-    model1.set_markove_switching_model(priors, transitions, nber_4_index, nber_5_index, nber_6_index)
-    model1.fit(X_train, y_train)
-    mae, acc = evaluate(model1, Data, X_train, X_test, y_test, verbose=0)
+    model = MarkovSwitchingNB(priors, transitions, nber_4_index, nber_5_index, nber_6_index)
+    model.fit(X_train, y_train)
+    mae, acc = evaluate(model, Data, X_train, X_test, y_test, verbose=0)
     avg_mae_MSNB += mae
     avg_acc_MSNB += acc
 
-print('GNB VS MSNB')
-print('MAE:', avg_mae_GNB/n_loop, avg_mae_MSNB/n_loop)
-print('ACC:', avg_acc_GNB/n_loop, avg_acc_MSNB/n_loop)
+    # Boosted Markov Switching NB
+    # print('\nBoosted MarkovSwitchingNB')
+    nb = MarkovSwitchingNB(priors, transitions, nber_4_index, nber_5_index, nber_6_index)
+    model = AdaBoostClassifier(base_estimator=nb, n_estimators=20, algorithm="SAMME")
+    model.fit(X_train, y_train)
+    mae, acc = evaluate(model, Data, X_train, X_test, y_test, verbose=0)
+    avg_mae_BoostedMSNB += mae
+    avg_acc_BoostedMSNB += acc
+
+    if (i+1)% 100 == 0 or i == n_loop-1:
+        print('Loop',i+1,'GNB VS MSNB VS Boosted MSNB:')
+        print('   MAE:', avg_mae_GNB/(i+1), avg_mae_BoostedNB/(i+1), avg_mae_MSNB/(i+1), avg_mae_BoostedMSNB/(i+1))
+        print('   ACC:', avg_acc_GNB/(i+1), avg_acc_BoostedNB/(i+1), avg_acc_MSNB/(i+1), avg_acc_BoostedMSNB/(i+1))
